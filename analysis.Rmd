@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Twitter Immigrant Geographic Anger Analysis"
 author: "James Bain"
 date: "3/14/2019"
 output: html_document
@@ -10,13 +10,24 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-library(dplyr)
+library(ggplot2)
 library(readr)
-library(purrr)
+library(dplyr)
 library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
 library(haterzmapper)
+library(geosphere)
+library(brms)
+library(spdep)
+library(purrr)
+
+
 source("R/cleaning_functions.R")
 ```
+
+## The Data
+The data here are anger classified tweets predicted by the gru tweet anger model. Each file corresponds to 
 
 ```{r}
 ref_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/refugee_anger.csv")
@@ -25,3 +36,31 @@ immi_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/immigrant_anger.csv")
 
 gen_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/baseline_anger.csv")
 ```
+
+
+### Other Data
+There is also some other data that is pertinent to this analysis. Things like Metropolitan Statistical Area ids, a mapping between msas and jobs and a simple features data frame of city centers.
+```{r}
+# get count data from msas from 
+# ~/Documents/research/TweetingLocale/papers/city_scaling/analyses/diversity_scaling.Rmd
+msa_counts <- read_csv("~/Dropbox/tweets/tweetgeoang/acs_msa_counts.csv") %>% mutate(msa_geoid = as.character(msa_geoid))
+research_cities <- read_csv("~/Dropbox/tweets/tweetgeoang/research_cities.csv") 
+# get msa id for each job
+msa_jobs <- research_cities %>%
+  left_join(haterzmapper::topcities) %>%
+  arrange(msa_geoid)
+# find msa_geoids and map to job_ids
+msa_jobs %>% left_join(msa_counts) %>%
+  arrange(rank) %>%
+  distinct(msa_geoid, .keep_all = T)
+# create an sf frame of city points
+cities_sf <- topcities %>% 
+  dplyr::select(rank, full_name, lon, lat, msa_geoid) %>% 
+  rename(city_name = full_name) %>% 
+  right_join(msa_jobs %>% distinct(msa_geoid)) %>% 
+  arrange(rank) %>% 
+  distinct(msa_geoid, .keep_all = T) %>%
+  st_as_sf(coords = c("lon", "lat")) %>%
+  st_set_crs(4326)
+```
+
