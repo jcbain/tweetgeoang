@@ -33,19 +33,23 @@ gen <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/generic_nort.csv")
 #tweetids <- tibble(tweet_id_str = c(ref$tweet_id_str, ill$tweet_id_str, immi$tweet_id_str))
 
 tweetids <- c(ref$tweet_id_str, ill$tweet_id_str, immi$tweet_id_str, gen$tweet_id_str)
+useids <- c(ref$from_user, ill$from_user, immi$from_user, gen$from_user)
 
 uniq_tweetids <- unique(tweetids)
+uniq_usids <- unique(useids)
 
 length(uniq_tweetids)
 
 newids <- sprintf("j%020d", sample(1:length(uniq_tweetids), replace = F))
+newusids <- sprintf("u%010d", sample(1:length(uniq_usids), replace = F))
 
 id_df <- tibble(tweet_id_str = uniq_tweetids, new_ids = newids)
+us_df <- tibble(from_user = uniq_usids, newus_ids = newusids)
 
-ref2 <- ref %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
-ill2 <- ill %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
-immi2 <- immi %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
-gen2 <- gen %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+ref2 <- ref %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
+ill2 <- ill %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
+immi2 <- immi %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
+gen2 <- gen %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
 ```
 ```{r}
 # the tweet_id_str of all of the keyword files
@@ -105,9 +109,9 @@ immi_ang <- clean_predtweets(
         join_data = immi,
         colnames = cnames)
 
-ref_ang2 <- ref_ang %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
-ill_ang2 <- ill_ang %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
-immi_ang2 <- immi_ang %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+ref_ang2 <- ref_ang %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
+ill_ang2 <- ill_ang%>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
+immi_ang2 <- immi_ang %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
 
 # 
 gen_ang <- map(list.files("~/Dropbox/tweets/paper2/predicted/pretrained_embeddings_predictions/", 
@@ -127,5 +131,5 @@ gen_ang <- map(list.files("~/Dropbox/tweets/paper2/predicted/pretrained_embeddin
   preprocess() %>% 
   transform_prediction(msa_jobs, anger)
 
-gen_ang2 <- gen_ang %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+gen_ang2 <- gen_ang %>% left_join(id_df) %>% left_join(us_df) %>% select(-c(tweet_id_str, from_user)) %>% rename(tweet_id_str = new_ids, from_user = newus_ids)
 ```
