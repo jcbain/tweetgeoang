@@ -64,3 +64,249 @@ cities_sf <- topcities %>%
   st_set_crs(4326)
 ```
 
+## Geographic Data
+One idea is that the distance to the border could play a role in the amount of animosity we see in some of these cities with regard to immigration. There is at least a basis for a hypothesis given that there is a spatial demention to the anger index. 
+
+We need to first find the border between Mexico and the U.S. Fortunately, this task is pretty simple with the `sf` package and teh `st_intersection` function.
+```{r}
+# get world data
+world <- ne_countries(scale = "medium", returnclass = "sf") %>% st_set_crs(4326)
+# filter out us and mexico
+us <- world %>% filter(geounit == "United States of America") 
+mexico <- world %>% filter(geounit == "Mexico") 
+# find the border
+border <- st_intersection(us, mexico)
+# quick little plot
+ggplot() + 
+  geom_sf(data = us, color = '#3e3e3f', fill = '#e8e8ea') +
+  geom_sf(data = mexico, color = '#3e3e3f', fill = '#e8e8ea', size = 0.25) + 
+  geom_sf(data = border, color = '#dd13a4', size = 2) + 
+  geom_sf(data = border, color = '#e3f939') + 
+  annotate("text", x = -95, y = 32, label = "UNITED STATES", color = '#3e3e3f') + 
+  annotate("text", x = -105, y = 26, label = "MEXICO", color = '#3e3e3f') + 
+  annotate("text", x = -94, y = 27, label = "GULF OF MEXICO", color = '#d3d3d3', size = 2) +
+  annotate("text", x = -117, y = 28, label = "PACIFIC", color = '#d3d3d3', size = 2) +
+  theme_bw() + 
+  coord_sf(xlim = c(-90, -120), ylim = c(24.5, 34), expand = FALSE)
+```
+It is now possible to find the distance from each city to the shared border between Mexico and the U.S. The distances will be in kilometer units.
+```{r}
+cities_sf$distance_border <- st_distance(cities_sf, border)[,1]/1000
+cities_sf$distance_border <- as.numeric(cities_sf$distance_border)
+```
+
+```{r}
+ref_ang_summary <- create_summary_data(ref_ang)
+immi_ang_summary <- create_summary_data(immi_ang)
+ill_ang_summary <- create_summary_data(ill_ang)
+gen_ang_summary <- create_summary_data(gen_ang)
+# find the difference between baseline and index_anger
+ref_ang_comp <- create_comparison(ref_ang_summary)
+ill_ang_comp <- create_comparison(ill_ang_summary)
+immi_ang_comp <- create_comparison(immi_ang_summary)
+# oh and a full frame of all immigration related
+ang <- bind_rows(ref_ang, immi_ang, ill_ang) %>% 
+  distinct(tweet_id_str, .keep_all = T) %>%
+  create_summary_data() %>% 
+  create_comparison() %>% 
+  mutate(msa_geoid = as.character(msa_geoid))
+
+ang_sf <- ang %>% left_join(cities_sf)
+# adjust the scalings of these to make the models a bit more easier to interpret 
+# hun_kilo = each unit is 100 km
+# ind_perc = percentage for of index_diff
+ang_sf$hun_kilo <- ang_sf$distance_border/100
+ang_sf$ind_perc <- ang_sf$index_diff * 100
+```
+
+# ANALYSIS
+We can start out simple...let's see if there is a spatial autocorrelation in the anger data.
+```{r}
+# set priors, here I'm thinking about diffuse priors that might work for you
+priors <- c( set_prior("normal(0,10)", class = "b", coef = "hun_kilo"),
+             set_prior("normal(0, 10)", class = "Intercept")
+             # can also put a different prior on sigma here if you want
+)
+tmp_mod <- brm(ind_perc ~ hun_kilo, prior = priors, data = ang_sf, cores = 4)
+```
+
+
+```{r}
+ang_sf %>% 
+  ggplot(aes(hun_kilo, ind_perc)) + 
+  geom_point() +
+  stat_smooth(method = "lm") +
+  theme_minimal()
+ang %>% 
+  left_join(cities_sf) %>% 
+  ggplot(aes(distance_border, gen_index)) + 
+  geom_point() +
+  stat_smooth(method = "lm") +
+  theme_minimal() 
+```
+
+[Difference Between CAR and SAR](https://stats.stackexchange.com/questions/277/spatial-statistics-models-car-vs-sar)
+```{r}
+create_coords <- function(data){
+  data %>%
+    as("Spatial") %>%
+    sp::coordinates()
+}
+find_spatial_neighbors <- function(coords, type = "gc"){
+  if( type == "gc"){
+    gck1 <- knn2nb(knearneigh(coords, k=1, longlat=TRUE))
+    all.linked <- max(unlist(nbdists(gck1, coords, longlat=TRUE)))
+    nb <- dnearneigh(coords, 0, all.linked, longlat=TRUE)
+  } else {
+    llk1 <- knn2nb(knearneigh(coords, k=1, longlat=FALSE))
+    all.linked <- max(unlist(nbdists(llk1, coords, longlat=FALSE)))
+    nb <- dnearneigh(coords, 0, all.linked, longlat=FALSE)
+  }
+  nb
+}
+```
+
+# Regression of Urban Indicator Residuals against Anger Indices
+
+The common hypothesis is social psychology is that the greater exposure one has to the "other" the more amicable the feelings become toward the "other." Well, one way to do this is to compare it with the data that we established in the paper 1, the scaling of diversity one.
+
+```{r}
+# HELPERS
+#' Pick select msa variables primarily from the `msa_count` data.
+#' 
+#' This provides easier functionality for quickly selecting variables from data.
+#'
+#' @param data MSA count data. Most likely `msa_count` data frame.
+#' @param var MSA variable that you want to compare against the population var.
+#' @return A data frame with the selected variable and log of those variables.
+pick_msavars <- function(data, var){
+  var <- rlang::enquo(var)
+  data %>% dplyr::select(msa_geoid, B01003_001, !! var) %>%
+    dplyr::filter(!! var > 0 & B01003_001 > 0) %>%
+    dplyr::mutate(logx = log(B01003_001), logy := log(!! var))
+}
+#' This combines the model ouput data from paper 1 models.
+#'
+#' @param mod_data The model data frame. It should have a residuals column.
+#' @param comp_data The data frane with the `index_diff` column.
+#' @returns A dataframe that is joined.
+combine_resids <- function(mod_dat, comp_dat){
+  mod_dat %>%
+    dplyr::mutate(msa_geoid = as.character(msa_geoid)) %>%
+    dplyr::right_join(comp_dat)
+}
+```
+
+### The Previous Models
+We have to collect the residuals somehow, so we are going to select a few of the models that we ran in paper 1 that are more directly related to the issue of immigration nowadays. Those variables are teh counts of naturalized citizers, the number of spanish speakers and the number of non-citizens. 
+
+```{r}
+# establish data sets
+msa_nat_citizen <- msa_counts %>% pick_msavars(B05001_005)
+msa_spanish <- msa_counts %>% pick_msavars(B16001_003)
+msa_non <- msa_counts %>% pick_msavars(B05001_006)
+# set priors, here I'm thinking about diffuse priors that might work for you
+priors <- c( set_prior("normal(1,10)", class = "b", coef = "logx"),
+             set_prior("normal(0, 10)", class = "Intercept")
+             # can also put a different prior on sigma here if you want
+)
+#create models
+nat_mod <- brm(logy ~ logx, prior = priors, data = msa_nat_citizen, cores = 4)
+span_mod <- brm(logy ~ logx, prior = priors, data = msa_spanish, cores = 4)
+non_mod <- brm(logy ~ logx, prior = priors, data = msa_non, cores = 4)
+# save residuals
+msa_nat_citizen$resids <- residuals(nat_mod)[,1]
+msa_spanish$resids <- residuals(span_mod)[,1]
+msa_non$resids <- residuals(non_mod)[,1]
+```
+
+These are the models that I am running to see if some of these variables have predictive power when it comes to this adjusted anger index. We are also testing for any spatial relationship that may occur.
+
+Here are a couple of links that are helpful for the spatial autocorrelation in `brms` aspect since the documentation is currently lacking, imo.
+- (Interpreting the Correlation Structure in `brms`)[https://groups.google.com/forum/#!topic/brms-users/6wEc3kvQCzc]
+- (Mixed Models in `R`)[https://m-clark.github.io/generalized-additive-models/appendix.html]
+```{r}
+mod2_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"))
+modresid_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"),
+                     set_prior("normal(0, 10)", class = "b", coef = "resids"))
+# create a spatial weight matrix
+coords <- create_coords(ang_sf %>% st_as_sf())
+wnb <- find_spatial_neighbors(coords = coords)  %>% nb2listw()
+# find moran i
+moran.mc(ang_sf$ind_perc, wnb, nsim = 999)
+# create a spatially lagged anger index from the weighted distance matrix
+ang.lag <- lag.listw(wnb, ang_sf$ind_perc)
+ang_sf$lag <- ang.lag
+fit1 <- brm(lag ~ ind_perc, data = ang_sf,
+            chains = 4, cores = 4)
+hypothesis(fit1, "ind_perc > 0.1")
+# percentage ajusted anger ~ spatial lag
+# fit1 <- brm(ind_perc ~ 1, data = ang_sf,
+#             autocor = cor_lagsar(wnb), 
+#             chains = 2, cores = 4)
+ggplot(ang_sf, aes(lag, ind_perc)) + geom_point() + geom_abline(intercept = 20.56, slope = 0.38)
+# percentage ajusted anger ~ hundred kilometers from border + spatial lag
+fit2 <- brm(ind_perc ~ hun_kilo, data = ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = mod2_priors,
+            chains = 2, cores = 4)
+nat_ang_sf <- combine_resids(msa_nat_citizen, ang_sf)
+# percentage ajusted anger ~ hundred kilometers from border + naturalized 
+# citizens residuals + spatial lag
+fit3 <- brm(ind_perc ~ hun_kilo + resids, data = nat_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+# check for the spatial auto-correlation of the residuals
+moran.mc(residuals(fit3)[,1], wnb, nsim = 999)
+# double check with bayesian regression model
+fit3data <- tibble(resid = residuals(fit3)[,1], lag = lag.listw(wnb, residuals(fit3)[,1]))
+resid_mod3 <- brm(lag ~ resid, data = fit3data,
+            chains = 4, cores = 4)
+fit31 <- brm(ind_perc ~ hun_kilo + resids, data = nat_ang_sf,
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+moran.mc(residuals(fit31)[,1], wnb, nsim = 999)
+fit32 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = nat_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+moran.mc(residuals(fit32)[,1], wnb, nsim = 999)
+non_ang_sf <- combine_resids(msa_non, ang_sf)
+# percentage ajusted anger ~ hundred kilometers from border + non-citizens 
+# residuals + spatial lag
+fit4 <- brm(ind_perc ~ hun_kilo + resids, data = non_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+moran.mc(residuals(fit4)[,1], wnb, nsim = 999)
+fit41 <- brm(ind_perc ~ hun_kilo + resids, data = non_ang_sf,
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+moran.mc(residuals(fit41)[,1], wnb, nsim = 999)
+fit42 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = non_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+moran.mc(residuals(fit42)[,1], wnb, nsim = 999)
+span_ang_sf <- combine_resids(msa_spanish, ang_sf)
+# percentage ajusted anger ~ hundred kilometers from border + spanish speaking 
+# residuals + spatial lag
+fit5 <- brm(ind_perc ~ hun_kilo + resids, data = span_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+fit51 <- brm(ind_perc ~ hun_kilo + resids, data = span_ang_sf,
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+fit52 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = span_ang_sf,
+            autocor = cor_lagsar(wnb),
+            prior = modresid_priors,
+            chains = 2, cores = 4)
+hypothesis(fit32, "hun_kilo:resids > 0")
+hypothesis(fit42, "hun_kilo:resids < 0")
+hypothesis(fit52, "hun_kilo:resids < 0")
+loo(fit3, fit31)
+loo(fit4, fit41)
+loo(fit5, fit51)
+```
