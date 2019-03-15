@@ -24,3 +24,22 @@ immi <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/immigrants_nort.csv")
 # and the baseline
 gen <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/generic_nort.csv")
 ```
+
+```{r}
+#tweetids <- tibble(tweet_id_str = c(ref$tweet_id_str, ill$tweet_id_str, immi$tweet_id_str))
+
+tweetids <- c(ref$tweet_id_str, ill$tweet_id_str, immi$tweet_id_str, gen$tweet_id_str)
+
+uniq_tweetids <- unique(tweetids)
+
+length(uniq_tweetids)
+
+newids <- sprintf("j%020d", sample(1:length(uniq_tweetids), replace = F))
+
+id_df <- tibble(tweet_id_str = uniq_tweetids, new_ids = newids)
+
+ref2 <- ref %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+ill2 <- ill %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+immi2 <- immi %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+gen2 <- gen %>% left_join(id_df) %>% select(-tweet_id_str) %>% rename(tweet_id_str = new_ids)
+```
