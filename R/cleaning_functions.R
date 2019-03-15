@@ -20,7 +20,7 @@ find_argmax <- function(data){
 #'   this case, is set to one.
 #'
 #' @param data The data frame to count the events.
-#' @returns A data frame with a count column per job_id.
+#' @return A data frame with a count column per job_id.
 preprocess <- function(data){
   data %>%
     dplyr::distinct(from_user, month, year, .keep_all = T)
@@ -38,7 +38,7 @@ preprocess <- function(data){
 #'   and specifically \ref{`hatermapper::topcities`}.
 #' @param col_name The name of the column to be manipulated.
 #' @param remove_middle This option removes the middle class if set to true.
-#' @returns A data frame with cleaned predictions.
+#' @return A data frame with cleaned predictions.
 transform_prediction <- function(data, msa_data, col_name, remove_middle = F){
   col_name <- rlang::enquo(col_name)
   emotion_name <- paste0('val_', dplyr::quo_name(col_name))
@@ -99,7 +99,7 @@ pick_msavars <- function(data, var){
 #' @importFrom magrittr "%>%"
 #' @param file The file to be read. This file must contain a `created_at`,
 #'   `from_user`, and `tweet_id_str` column in order to function.
-#' @returns Cleaned tibble with non_duplicated rows.
+#' @return Cleaned tibble with non_duplicated rows.
 clean_tweeter <- function(file){
   readr::read_csv(file,
                   col_types = readr::cols(tweet_id_str = readr::col_character(),
@@ -117,7 +117,7 @@ clean_tweeter <- function(file){
 #' @param join_data A data from of the non-prediction files.
 #' @param colnames A vector of column names.
 #' @param ... See `transform_prediction`.
-#' @returns A cleaned tibble for predictions.
+#' @return A cleaned tibble for predictions.
 clean_predtweets <- function(file, join_data, colnames=cnames, ...){
   readr::read_csv(file, col_names = colnames,
                   col_types = readr::cols(tweet_id_str = readr::col_character())
@@ -132,8 +132,8 @@ clean_predtweets <- function(file, join_data, colnames=cnames, ...){
 #' Summarize the anger index per msa_geoid.
 #'
 #' @importFrom magrittr "%>%"
-#' @data Data frame to be passed.
-#' @returns Summarized data frame.
+#' @param data Data frame to be passed.
+#' @return Summarized data frame.
 create_summary_data <- function(data){
   data %>%
     summarize_emotion(val_anger, msa_geoid) %>%
@@ -147,7 +147,7 @@ create_summary_data <- function(data){
 #' @importFrom magrittr "%>%"
 #' @param data The summary data frame.
 #' @param gen_summary_data The general summary data frame.
-#' @returns A tibble with an index_diff column.
+#' @return A tibble with an index_diff column.
 create_comparison <- function(data, gen_summary_data = gen_ang_summary){
   dplyr::select(gen_summary_data, msa_geoid, index_anger) %>%
     dplyr::rename(gen_index = index_anger) %>%
