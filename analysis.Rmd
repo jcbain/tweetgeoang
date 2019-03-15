@@ -1,0 +1,26 @@
+---
+title: "Untitled"
+author: "James Bain"
+date: "3/14/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+source("R/cleaning_functions.R")
+```
+
+```{r}
+# the three immigration related keywords
+# refugees, illegals and immigrant
+ref <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/refugees_nort.csv")
+ill <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/illegals_nort.csv")
+immi <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/immigrants_nort.csv")
+
+# and the baseline
+gen <- clean_tweeter("~/Dropbox/tweets/paper2/rawdata/generic_nort.csv")
+```

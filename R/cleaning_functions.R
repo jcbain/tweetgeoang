@@ -19,6 +19,7 @@ find_argmax <- function(data){
 #'   out those who may overtweet more than their analysis alotment, which in
 #'   this case, is set to one.
 #'
+#' @importFrom magrittr "%>%"
 #' @param data The data frame to count the events.
 #' @return A data frame with a count column per job_id.
 preprocess <- function(data){
@@ -96,16 +97,18 @@ pick_msavars <- function(data, var){
 #' This function reads in the file mmanipulates the column types, removes
 #'   duplicaes and creates a couple new variables.
 #'
-#' @importFrom magrittr "%>%"
 #' @param file The file to be read. This file must contain a `created_at`,
 #'   `from_user`, and `tweet_id_str` column in order to function.
+#' @importFrom magrittr "%>%"
 #' @return Cleaned tibble with non_duplicated rows.
 clean_tweeter <- function(file){
   readr::read_csv(file,
-                  col_types = readr::cols(tweet_id_str = readr::col_character(),
-                                          from_user = readr::col_character())) %>%
+                  col_types = readr::cols(
+                    tweet_id_str = readr::col_character(),
+                    from_user = readr::col_character())) %>%
     dplyr::distinct(tweet_id_str, .keep_all = T) %>%
-    dplyr::mutate(month = lubridate::month(created_at), year = lubridate::year(created_at))
+    dplyr::mutate(month = lubridate::month(created_at),
+                  year = lubridate::year(created_at))
 }
 
 #' This function preprocesses prediction files. It uses the non-pred files
