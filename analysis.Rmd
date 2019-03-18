@@ -152,17 +152,22 @@ msa_non$resids <- residuals(non_mod)[,1]
 
 
 ```{r}
-mod2_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"))
-modresid_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"),
-                     set_prior("normal(0, 10)", class = "b", coef = "resids"))
+
 # create a spatial weight matrix
 coords <- create_coords(ang_sf %>% st_as_sf())
 wnb <- find_spatial_neighbors(coords = coords)  %>% nb2listw()
+
 # find moran i
 moran.mc(ang_sf$ind_perc, wnb, nsim = 999)
 # create a spatially lagged anger index from the weighted distance matrix
 ang.lag <- lag.listw(wnb, ang_sf$ind_perc)
 ang_sf$lag <- ang.lag
+
+## Bayesian Linear Models 
+# priors for the scale adjusted metropolitan indicator models
+modresid_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"),
+                     set_prior("normal(0, 10)", class = "b", coef = "resids"))
+
 fit1 <- brm(lag ~ ind_perc, data = ang_sf,
             chains = 4, cores = 4)
 hypothesis(fit1, "ind_perc > 0.1")
@@ -170,69 +175,63 @@ hypothesis(fit1, "ind_perc > 0.1")
 # fit1 <- brm(ind_perc ~ 1, data = ang_sf,
 #             autocor = cor_lagsar(wnb), 
 #             chains = 2, cores = 4)
-ggplot(ang_sf, aes(lag, ind_perc)) + geom_point() + geom_abline(intercept = 20.56, slope = 0.38)
-# percentage ajusted anger ~ hundred kilometers from border + spatial lag
-fit2 <- brm(ind_perc ~ hun_kilo, data = ang_sf,
-            autocor = cor_lagsar(wnb),
-            prior = mod2_priors,
-            chains = 2, cores = 4)
+
+## NATURALIZED CITIZEN MODELS
 nat_ang_sf <- combine_resids(msa_nat_citizen, ang_sf)
 # percentage ajusted anger ~ hundred kilometers from border + naturalized 
 # citizens residuals + spatial lag
-fit3 <- brm(ind_perc ~ hun_kilo + resids, data = nat_ang_sf,
+nat_fit <- brm(ind_perc ~ hun_kilo + resids, data = nat_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
 # check for the spatial auto-correlation of the residuals
-moran.mc(residuals(fit3)[,1], wnb, nsim = 999)
-# double check with bayesian regression model
-fit3data <- tibble(resid = residuals(fit3)[,1], lag = lag.listw(wnb, residuals(fit3)[,1]))
-resid_mod3 <- brm(lag ~ resid, data = fit3data,
-            chains = 4, cores = 4)
-fit31 <- brm(ind_perc ~ hun_kilo + resids, data = nat_ang_sf,
-            prior = modresid_priors,
-            chains = 2, cores = 4)
-moran.mc(residuals(fit31)[,1], wnb, nsim = 999)
-fit32 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = nat_ang_sf,
+moran.mc(residuals(nat_fit)[,1], wnb, nsim = 999)
+
+# interaction
+nat_fit_inter <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = nat_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
-moran.mc(residuals(fit32)[,1], wnb, nsim = 999)
+moran.mc(residuals(nat_fit_inter)[,1], wnb, nsim = 999)
+
+## NON-CITIZEN
 non_ang_sf <- combine_resids(msa_non, ang_sf)
 # percentage ajusted anger ~ hundred kilometers from border + non-citizens 
 # residuals + spatial lag
-fit4 <- brm(ind_perc ~ hun_kilo + resids, data = non_ang_sf,
+not_fit <- brm(ind_perc ~ hun_kilo + resids, data = non_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
-moran.mc(residuals(fit4)[,1], wnb, nsim = 999)
-fit41 <- brm(ind_perc ~ hun_kilo + resids, data = non_ang_sf,
-            prior = modresid_priors,
-            chains = 2, cores = 4)
-moran.mc(residuals(fit41)[,1], wnb, nsim = 999)
-fit42 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = non_ang_sf,
+moran.mc(residuals(non_fit)[,1], wnb, nsim = 999)
+
+non_fit_inter <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = non_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
-moran.mc(residuals(fit42)[,1], wnb, nsim = 999)
+moran.mc(residuals(non_fit_inter)[,1], wnb, nsim = 999)
+
+## SPANISH SPEAKERS
 span_ang_sf <- combine_resids(msa_spanish, ang_sf)
+
 # percentage ajusted anger ~ hundred kilometers from border + spanish speaking 
 # residuals + spatial lag
-fit5 <- brm(ind_perc ~ hun_kilo + resids, data = span_ang_sf,
+span_fit <- brm(ind_perc ~ hun_kilo + resids, data = span_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
-fit51 <- brm(ind_perc ~ hun_kilo + resids, data = span_ang_sf,
-            prior = modresid_priors,
-            chains = 2, cores = 4)
-fit52 <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = span_ang_sf,
+moran.mc(residuals(span_fit)[,1], wnb, nsim = 999)
+
+span_fit_inter <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data = span_ang_sf,
             autocor = cor_lagsar(wnb),
             prior = modresid_priors,
             chains = 2, cores = 4)
-hypothesis(fit32, "hun_kilo:resids > 0")
-hypothesis(fit42, "hun_kilo:resids < 0")
-hypothesis(fit52, "hun_kilo:resids < 0")
-loo(fit3, fit31)
-loo(fit4, fit41)
-loo(fit5, fit51)
+moran.mc(residuals(non_fit_inter)[,1], wnb, nsim = 999)
+
+hypothesis(non_fit_inter, "hun_kilo:resids > 0")
+hypothesis(nat_fit_inter, "hun_kilo:resids < 0")
+hypothesis(span_fit_inter, "hun_kilo:resids < 0")
+
+loo(nat_fit, nat_fit_inter)
+loo(non_fit, non_fit_inter)
+loo(span_fit, span_fit_inter)
 ```
