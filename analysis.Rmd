@@ -39,7 +39,7 @@ source("R/spatial_functions.R")
 ```
 
 ## The Data
-The data here are anger classified tweets predicted by the gru tweet anger model. Each file corresponds to 
+The data here are anger classified tweets predicted by the gru tweet anger model. Each file corresponds to a specific keyword regarding immigration. These keywords are "refugee", "illegals" and "immigrant". Any tweet from our database containing these keywords will be in these files. A baseline subset was also randomly sampled to gather a baseline anger index per city. 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ref_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/refugee_anger.csv")
@@ -57,14 +57,17 @@ There is also some other data that is pertinent to this analysis. Things like Me
 # ~/Documents/research/TweetingLocale/papers/city_scaling/analyses/diversity_scaling.Rmd
 msa_counts <- read_csv("~/Dropbox/tweets/tweetgeoang/acs_msa_counts.csv") %>% mutate(msa_geoid = as.character(msa_geoid))
 research_cities <- read_csv("~/Dropbox/tweets/tweetgeoang/research_cities.csv") 
+
 # get msa id for each job
 msa_jobs <- research_cities %>%
   left_join(haterzmapper::topcities) %>%
   arrange(msa_geoid)
+
 # find msa_geoids and map to job_ids
 msa_jobs %>% left_join(msa_counts) %>%
   arrange(rank) %>%
   distinct(msa_geoid, .keep_all = T)
+
 # create an sf frame of city points
 cities_sf <- topcities %>% 
   dplyr::select(rank, full_name, lon, lat, msa_geoid) %>% 
@@ -83,12 +86,19 @@ We need to first find the border between Mexico and the U.S. Fortunately, this t
 ```{r}
 # get world data
 world <- ne_countries(scale = "medium", returnclass = "sf") %>% st_set_crs(4326)
+
 # filter out us and mexico
 us <- world %>% filter(geounit == "United States of America") 
 mexico <- world %>% filter(geounit == "Mexico") 
+
 # find the border
 border <- st_intersection(us, mexico)
-# quick little plot
+
+# find the distance to the border
+cities_sf$distance_border <- st_distance(cities_sf, border)[,1]/1000
+cities_sf$distance_border <- as.numeric(cities_sf$distance_border)
+
+# quick little plot to visualize the border
 ggplot() + 
   geom_sf(data = us, color = '#3e3e3f', fill = '#e8e8ea') +
   geom_sf(data = mexico, color = '#3e3e3f', fill = '#e8e8ea', size = 0.25) + 
@@ -101,21 +111,19 @@ ggplot() +
   theme_bw() + 
   coord_sf(xlim = c(-90, -120), ylim = c(24.5, 34), expand = FALSE)
 ```
-It is now possible to find the distance from each city to the shared border between Mexico and the U.S. The distances will be in kilometer units.
-```{r}
-cities_sf$distance_border <- st_distance(cities_sf, border)[,1]/1000
-cities_sf$distance_border <- as.numeric(cities_sf$distance_border)
-```
 
+To find the overall anger index for each these cities for each of these data sets involves summing up the anger class for each city divided by the number of tweets for that city. This value is then divided by 2 in order to create an index between 0 and 1 where 0 is no anger at all and 1 is complete anger in all tweets for that city. 
 ```{r}
 ref_ang_summary <- create_summary_data(ref_ang)
 immi_ang_summary <- create_summary_data(immi_ang)
 ill_ang_summary <- create_summary_data(ill_ang)
 gen_ang_summary <- create_summary_data(gen_ang)
+
 # find the difference between baseline and index_anger
 ref_ang_comp <- create_comparison(ref_ang_summary)
 ill_ang_comp <- create_comparison(ill_ang_summary)
 immi_ang_comp <- create_comparison(immi_ang_summary)
+
 # oh and a full frame of all immigration related
 ang <- bind_rows(ref_ang, immi_ang, ill_ang) %>% 
   distinct(tweet_id_str, .keep_all = T) %>%
@@ -124,6 +132,7 @@ ang <- bind_rows(ref_ang, immi_ang, ill_ang) %>%
   mutate(msa_geoid = as.character(msa_geoid))
 
 ang_sf <- ang %>% left_join(cities_sf)
+
 # adjust the scalings of these to make the models a bit more easier to interpret 
 # hun_kilo = each unit is 100 km
 # ind_perc = percentage for of index_diff
@@ -133,13 +142,8 @@ ang_sf$ind_perc <- ang_sf$index_diff * 100
 
 # ANALYSIS
 
-## Regression of Urban Indicator Residuals against Anger Indices
-
-The common hypothesis is social psychology is that the greater exposure one has to the "other" the more amicable the feelings become toward the "other." Well, one way to do this is to compare it with the data that we established in the paper 1, the scaling of diversity one.
-
-
-### The Previous Models
-We have to collect the residuals somehow, so we are going to select a few of the models that we ran in paper 1 that are more directly related to the issue of immigration nowadays. Those variables are teh counts of naturalized citizers, the number of spanish speakers and the number of non-citizens. 
+### Find the Scale Adjusted Metropolitan Indicators
+These values are performance indicators of ubran indicators. In this case, the number of naturalized citizens, number of non-citizens and the number of Spanish speakers are considered. The relationship between these indicators and city population size are transformed on a log scale and a bayesian linear model is run to find the relationship between these variables. The residuals for these models are the scale adjusted metropolitan indicators and allow for inter-city comparisons independent of population size. Positive residuals mean that a city is above what is expected and negative means they are below. These scale adjusted indicators are used as predictors in the final models predicting the relative anger index.
 
 ```{r}
 # establish data sets
@@ -161,6 +165,8 @@ msa_spanish$resids <- residuals(span_mod)[,1]
 msa_non$resids <- residuals(non_mod)[,1]
 ```
 
+### Anger Index predicted by distance to the border and scale adjusted indicators
+
 
 ```{r}
 
@@ -179,13 +185,11 @@ ang_sf$lag <- ang.lag
 modresid_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"),
                      set_prior("normal(0, 10)", class = "b", coef = "resids"))
 
+# check moran i with bayesian linear model
 fit1 <- brm(lag ~ ind_perc, data = ang_sf,
             chains = 4, cores = 4)
 hypothesis(fit1, "ind_perc > 0.1")
-# percentage ajusted anger ~ spatial lag
-# fit1 <- brm(ind_perc ~ 1, data = ang_sf,
-#             autocor = cor_lagsar(wnb), 
-#             chains = 2, cores = 4)
+
 
 ## NATURALIZED CITIZEN MODELS
 nat_ang_sf <- combine_resids(msa_nat_citizen, ang_sf)
@@ -238,10 +242,12 @@ span_fit_inter <- brm(ind_perc ~ hun_kilo + resids + (hun_kilo * resids), data =
             chains = 2, cores = 4)
 moran.mc(residuals(non_fit_inter)[,1], wnb, nsim = 999)
 
+# see if interactions are above 0
 hypothesis(non_fit_inter, "hun_kilo:resids > 0")
 hypothesis(nat_fit_inter, "hun_kilo:resids < 0")
 hypothesis(span_fit_inter, "hun_kilo:resids < 0")
 
+# check the best models with leave one out 
 loo(nat_fit, nat_fit_inter)
 loo(non_fit, non_fit_inter)
 loo(span_fit, span_fit_inter)
