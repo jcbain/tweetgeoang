@@ -9,6 +9,17 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#### a bit of housekeeping...
+This analysis relies on several spatial packages and (`brms`)[https://cran.r-project.org/web/packages/brms/index.html], which is a handy package to run some Bayesian models using `R`'s formula syntax. It also relies on some data called from the (`haterzmapper`)[https://github.com/jcbain/haterzmapper] package. The following block of code will install `haterzmapper` if it isn't already installed. 
+
+```{r}
+## install haterzmapper package if it's not already installed
+if (!requireNamespace("haterzmapper", quietly = TRUE)) {
+  devtools::install_github("jcbain/haterzmapper")
+}
+```
+
+...then load these packages along with reading in some helper fuctions specified in the `R/` subdirectory of this repo. 
 ```{r}
 library(ggplot2)
 library(readr)
@@ -22,7 +33,7 @@ library(brms)
 library(spdep)
 library(purrr)
 
-
+# read in helper functions
 source("R/cleaning_functions.R")
 source("R/spatial_functions.R")
 ```
