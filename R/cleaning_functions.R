@@ -158,3 +158,27 @@ create_comparison <- function(data, gen_summary_data = gen_ang_summary){
     dplyr::mutate(index_diff = index_anger - gen_index) %>%
     na.omit()
 }
+
+#' Pick select msa variables primarily from the `msa_count` data.
+#' 
+#' This provides easier functionality for quickly selecting variables from data.
+#'
+#' @param data MSA count data. Most likely `msa_count` data frame.
+#' @param var MSA variable that you want to compare against the population var.
+#' @return A data frame with the selected variable and log of those variables.
+pick_msavars <- function(data, var){
+  var <- rlang::enquo(var)
+  data %>% dplyr::select(msa_geoid, B01003_001, !! var) %>%
+    dplyr::filter(!! var > 0 & B01003_001 > 0) %>%
+    dplyr::mutate(logx = log(B01003_001), logy := log(!! var))
+}
+#' This combines the model ouput data from paper 1 models.
+#'
+#' @param mod_data The model data frame. It should have a residuals column.
+#' @param comp_data The data frane with the `index_diff` column.
+#' @returns A dataframe that is joined.
+combine_resids <- function(mod_dat, comp_dat){
+  mod_dat %>%
+    dplyr::mutate(msa_geoid = as.character(msa_geoid)) %>%
+    dplyr::right_join(comp_dat)
+}
