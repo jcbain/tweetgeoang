@@ -24,12 +24,13 @@ library(purrr)
 
 
 source("R/cleaning_functions.R")
+source("R/spatial_functions.R")
 ```
 
 ## The Data
 The data here are anger classified tweets predicted by the gru tweet anger model. Each file corresponds to 
 
-```{r}
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
 ref_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/refugee_anger.csv")
 ill_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/illegals_anger.csv")
 immi_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/immigrant_anger.csv")
@@ -120,53 +121,8 @@ ang_sf$ind_perc <- ang_sf$index_diff * 100
 ```
 
 # ANALYSIS
-We can start out simple...let's see if there is a spatial autocorrelation in the anger data.
-```{r}
-# set priors, here I'm thinking about diffuse priors that might work for you
-priors <- c( set_prior("normal(0,10)", class = "b", coef = "hun_kilo"),
-             set_prior("normal(0, 10)", class = "Intercept")
-             # can also put a different prior on sigma here if you want
-)
-tmp_mod <- brm(ind_perc ~ hun_kilo, prior = priors, data = ang_sf, cores = 4)
-```
 
-
-```{r}
-ang_sf %>% 
-  ggplot(aes(hun_kilo, ind_perc)) + 
-  geom_point() +
-  stat_smooth(method = "lm") +
-  theme_minimal()
-ang %>% 
-  left_join(cities_sf) %>% 
-  ggplot(aes(distance_border, gen_index)) + 
-  geom_point() +
-  stat_smooth(method = "lm") +
-  theme_minimal() 
-```
-
-[Difference Between CAR and SAR](https://stats.stackexchange.com/questions/277/spatial-statistics-models-car-vs-sar)
-```{r}
-create_coords <- function(data){
-  data %>%
-    as("Spatial") %>%
-    sp::coordinates()
-}
-find_spatial_neighbors <- function(coords, type = "gc"){
-  if( type == "gc"){
-    gck1 <- knn2nb(knearneigh(coords, k=1, longlat=TRUE))
-    all.linked <- max(unlist(nbdists(gck1, coords, longlat=TRUE)))
-    nb <- dnearneigh(coords, 0, all.linked, longlat=TRUE)
-  } else {
-    llk1 <- knn2nb(knearneigh(coords, k=1, longlat=FALSE))
-    all.linked <- max(unlist(nbdists(llk1, coords, longlat=FALSE)))
-    nb <- dnearneigh(coords, 0, all.linked, longlat=FALSE)
-  }
-  nb
-}
-```
-
-# Regression of Urban Indicator Residuals against Anger Indices
+## Regression of Urban Indicator Residuals against Anger Indices
 
 The common hypothesis is social psychology is that the greater exposure one has to the "other" the more amicable the feelings become toward the "other." Well, one way to do this is to compare it with the data that we established in the paper 1, the scaling of diversity one.
 
