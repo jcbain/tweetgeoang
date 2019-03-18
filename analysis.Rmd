@@ -150,11 +150,7 @@ msa_spanish$resids <- residuals(span_mod)[,1]
 msa_non$resids <- residuals(non_mod)[,1]
 ```
 
-These are the models that I am running to see if some of these variables have predictive power when it comes to this adjusted anger index. We are also testing for any spatial relationship that may occur.
 
-Here are a couple of links that are helpful for the spatial autocorrelation in `brms` aspect since the documentation is currently lacking, imo.
-- (Interpreting the Correlation Structure in `brms`)[https://groups.google.com/forum/#!topic/brms-users/6wEc3kvQCzc]
-- (Mixed Models in `R`)[https://m-clark.github.io/generalized-additive-models/appendix.html]
 ```{r}
 mod2_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"))
 modresid_priors <- c(set_prior("normal(0, 1)", class = "b", coef = "hun_kilo"),

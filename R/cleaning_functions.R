@@ -163,6 +163,7 @@ create_comparison <- function(data, gen_summary_data = gen_ang_summary){
 #' 
 #' This provides easier functionality for quickly selecting variables from data.
 #'
+#' @importFrom magrittr "%>%"
 #' @param data MSA count data. Most likely `msa_count` data frame.
 #' @param var MSA variable that you want to compare against the population var.
 #' @return A data frame with the selected variable and log of those variables.
@@ -174,6 +175,7 @@ pick_msavars <- function(data, var){
 }
 #' This combines the model ouput data from paper 1 models.
 #'
+#' @importFrom magrittr "%>%"
 #' @param mod_data The model data frame. It should have a residuals column.
 #' @param comp_data The data frane with the `index_diff` column.
 #' @returns A dataframe that is joined.
