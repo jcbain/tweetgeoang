@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+**IMPORTANT NOTE**: Be sure to set the working directory to the `tweetgeoang/` directory before reading in any of the data.
+
 #### a bit of housekeeping...
 This analysis relies on several spatial packages and (`brms`)[https://cran.r-project.org/web/packages/brms/index.html], which is a handy package to run some Bayesian models using `R`'s formula syntax. It also relies on some data called from the (`haterzmapper`)[https://github.com/jcbain/haterzmapper] package. The following block of code will install `haterzmapper` if it isn't already installed. 
 
@@ -42,11 +44,11 @@ source("R/spatial_functions.R")
 The data here are anger classified tweets predicted by the gru tweet anger model. Each file corresponds to a specific keyword regarding immigration. These keywords are "refugee", "illegals" and "immigrant". Any tweet from our database containing these keywords will be in these files. A baseline subset was also randomly sampled to gather a baseline anger index per city. 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-ref_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/refugee_anger.csv")
-ill_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/illegals_anger.csv")
-immi_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/immigrant_anger.csv")
+ref_ang <- read_csv("data/refugee_anger.csv")
+ill_ang <- read_csv("data/illegals_anger.csv")
+immi_ang <- read_csv("data/immigrant_anger.csv")
 
-gen_ang <- read_csv("~/Dropbox/tweets/tweetgeoang/baseline_anger.csv")
+gen_ang <- read_csv("data/baseline_anger.csv")
 ```
 
 
@@ -55,8 +57,8 @@ There is also some other data that is pertinent to this analysis. Things like Me
 ```{r}
 # get count data from msas from 
 # ~/Documents/research/TweetingLocale/papers/city_scaling/analyses/diversity_scaling.Rmd
-msa_counts <- read_csv("~/Dropbox/tweets/tweetgeoang/acs_msa_counts.csv") %>% mutate(msa_geoid = as.character(msa_geoid))
-research_cities <- read_csv("~/Dropbox/tweets/tweetgeoang/research_cities.csv") 
+msa_counts <- read_csv("data/acs_msa_counts.csv") %>% mutate(msa_geoid = as.character(msa_geoid))
+research_cities <- read_csv("data/research_cities.csv") 
 
 # get msa id for each job
 msa_jobs <- research_cities %>%
