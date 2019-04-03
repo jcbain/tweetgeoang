@@ -1,5 +1,5 @@
 # tweetgeoang
-Reproducible analysis for the article *The Border Effect: Analyzing the Geographic Relationship of Angry Immigration Tweets Classified by a Gated Recurrent Unit*
+Reproducible analysis for the article *Analyzing the Geographic Relationship of Angry Immigration Tweets Classified by a Gated Recurrent Unit*
 
 Below is a table of the contents and their function with regards to this analysis:
 
